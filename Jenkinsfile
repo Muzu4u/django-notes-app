@@ -1,49 +1,40 @@
 pipeline {
-    
-    agent {
-        label 'dev-server'
-    }
-    
+    agent any
+
     stages {
-        stage("Clone code") {
+        stage('Clone Repo') {
             steps {
-                echo "Clone code from the GitHub repository"
-                git url: "https://github.com/S47sawan/django-notes-app.git", branch: "main"
+                echo 'Cloning code from github'
+                git branch: 'main', credentialsId: 'bec8131d-8434-4974-82c0-0b204b0bac25', url: 'https://github.com/Muzu4u/django-notes-app.git'
+            }
+        }
+        stage('Build Project') {
+            steps {
+                echo 'Building Image'
+                sh 'docker build -t mynotes-app .'
             }
         }
         
-        stage("Build") {
+        stage('Testing Image') {
             steps {
-                echo "Building Image"
-                sh "docker build -t my-notes-app ."
-            }
-        }
-        
-        stage("Scan") {
-            steps {
-                echo "Scan Image with Trivy"
-                sh "trivy image smihah/my-notes-app:latest --scanners vuln"
-            }
-        }
-        
-        stage("Push to DockerHub") {
-            steps {
-                echo "Push build image to DockerHub"
-        
-                // Use withCredentials block to securely handle DockerHub credentials
-                 withCredentials([usernamePassword(credentialsId: "dockerHub", passwordVariable: "dockerHubPass", usernameVariable: "dockerHubUser")]) {
-                    sh "docker login -u ${env.dockerHubUser} -p ${env.dockerHubPass}"
-                    sh "docker tag my-notes-app:latest ${env.dockerHubUser}/my-notes-app:latest"
-                    sh "docker push ${env.dockerHubUser}/my-notes-app:latest"
+                script{
+                echo 'Testing Image'
+                def imageExists = sh(script: "docker inspect -f '{{.Id}}' mynotes-app:latest", returnStatus: true)
+                    if (imageExists == 0) {
+                        echo 'Test passed: Image mynotes-app:latest exists'
+                    } else {
+                        echo 'Test failed: Image mynotes-app:latest does not exist'
+                    }
                 }
             }
         }
         
-       stage("Deploy") {
-          steps {
-                echo "Deploy image from Docker Hub to AWS EC2"
-                sh "docker-compose down && docker-compose up -d"
+        stage('Deploying Project') {
+            steps {
+                echo 'Deploying Project'
+                sh 'docker run -d -p 8000:8000 mynotes-app'
             }
         }
     }
 }
+
